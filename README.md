@@ -1,0 +1,89 @@
+# Custom Cursor Plugin for WordPress
+
+A WordPress plugin that allows you to upload a custom cursor image and display it on any page using a shortcode.
+
+## Features
+
+- Upload custom cursor images through WordPress admin
+- Automatic image resizing to optimal cursor size (32x32 pixels)
+- Enable/disable functionality with a simple toggle
+- Easy-to-use shortcode for displaying custom cursor on any page
+- One-click shortcode copying
+
+## Installation
+
+1. Upload the `custom-cursor-plugin.php` file to your WordPress plugins directory:
+   - `/wp-content/plugins/custom-cursor/`
+
+2. Activate the plugin through the 'Plugins' menu in WordPress
+
+3. Navigate to 'Custom Cursor' in the WordPress admin menu
+
+## Usage
+
+### Step 1: Upload Your Cursor Image
+
+1. Go to **Custom Cursor** in the WordPress admin menu
+2. Upload an image file (any size - it will be automatically optimized)
+3. Large images will be automatically resized to 32x32 pixels for optimal cursor performance
+
+### Step 2: Enable the Plugin
+
+1. Check the "Enable custom cursor functionality" checkbox
+2. The settings will save automatically
+
+### Step 3: Use the Shortcode
+
+1. Once enabled and an image is uploaded, you'll see a shortcode displayed on the settings page:
+   ```
+   [custom_cursor]
+   ```
+
+2. Copy this shortcode and paste it into any WordPress page or post
+
+3. When visitors view that page, their cursor will change to your custom image
+
+## How It Works
+
+- The shortcode applies the custom cursor to the entire page when activated
+- The cursor image is applied using CSS `cursor` property
+- All elements on the page will display the custom cursor
+- Falls back to default cursor if the custom image fails to load
+
+## Requirements
+
+- WordPress 5.0 or higher
+- PHP 7.0 or higher
+- GD or ImageMagick library (usually included with WordPress)
+
+## Browser Compatibility
+
+The custom cursor feature is supported in all modern browsers:
+- Chrome/Edge
+- Firefox
+- Safari
+- Opera
+
+## Troubleshooting
+
+**Cursor not changing:**
+- Make sure the plugin is enabled in settings
+- Verify the shortcode `[custom_cursor]` is on the page
+- Check that the image uploaded successfully
+- Try a different image format (PNG works best for cursors)
+
+**Image too large:**
+- The plugin automatically resizes images, but smaller source images work better
+- Recommended: Upload images already close to 32x32 pixels for best quality
+
+## Technical Details
+
+- Images are resized to 32x32 pixels (optimal cursor size for most browsers)
+- Supports common image formats: JPG, PNG, GIF, WEBP
+- Uses WordPress media library for image management
+- Implements WordPress security best practices (nonces, capability checks)
+
+## License
+
+GPL v2 or later
+

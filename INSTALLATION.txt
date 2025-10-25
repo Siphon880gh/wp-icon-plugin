@@ -1,0 +1,30 @@
+CUSTOM CURSOR PLUGIN - INSTALLATION INSTRUCTIONS
+================================================
+
+QUICK START:
+
+1. Create a folder called 'custom-cursor' in your WordPress plugins directory:
+   /wp-content/plugins/custom-cursor/
+
+2. Upload these files to that folder:
+   - custom-cursor-plugin.php
+   - admin.js
+
+3. Go to WordPress Admin → Plugins → Activate "Custom Cursor Plugin"
+
+4. Go to WordPress Admin → Custom Cursor (in the sidebar menu)
+
+5. Upload your cursor image and enable the feature
+
+6. Copy the shortcode: [custom_cursor]
+
+7. Paste the shortcode on any page or post where you want the custom cursor
+
+THAT'S IT!
+
+NOTES:
+- Images larger than 32x32 pixels will be automatically resized
+- The cursor will apply to the entire page where the shortcode is placed
+- You can use PNG, JPG, GIF, or WEBP images
+- For best results, use a PNG image with transparency
+
