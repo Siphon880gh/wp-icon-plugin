@@ -191,10 +191,13 @@ class Custom_Cursor_Plugin {
                         <td>
                             <label>
                                 <input type="checkbox" name="custom_cursor_enabled" value="1" 
-                                    <?php checked($enabled, '1'); ?>
-                                    onchange="this.form.submit()">
+                                    <?php checked($enabled, '1'); ?>>
                                 Enable custom cursor functionality
                             </label>
+                            <span id="enable-status" style="margin-left: 10px; display: none;">
+                                <span class="spinner" style="float: none; visibility: visible;"></span>
+                                <span class="status-text">Saving...</span>
+                            </span>
                         </td>
                     </tr>
                     
@@ -218,6 +221,10 @@ class Custom_Cursor_Plugin {
                 
                 <p class="submit">
                     <input type="submit" name="submit" id="submit" class="button button-primary" value="Upload Image">
+                    <span id="upload-status" style="margin-left: 10px; display: none;">
+                        <span class="spinner" style="float: none; visibility: visible;"></span>
+                        <span class="status-text">Uploading...</span>
+                    </span>
                 </p>
             </form>
             
@@ -245,24 +252,57 @@ class Custom_Cursor_Plugin {
         jQuery(document).ready(function($) {
             // Auto-submit form when enable checkbox is changed
             $('input[name="custom_cursor_enabled"]').on('change', function() {
-                var form = $(this).closest('form');
-                var formData = new FormData();
-                formData.append('action', 'custom_cursor_save_settings');
-                formData.append('custom_cursor_nonce', $('input[name="custom_cursor_nonce"]').val());
-                formData.append('custom_cursor_enabled', this.checked ? '1' : '0');
+                var checkbox = $(this);
+                var statusDiv = $('#enable-status');
+                
+                // Disable checkbox and show saving status
+                checkbox.prop('disabled', true);
+                statusDiv.show();
+                statusDiv.find('.status-text').text('Saving...');
+                statusDiv.removeClass('saved');
                 
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
                     data: {
                         action: 'custom_cursor_save_settings',
-                        custom_cursor_enabled: this.checked ? '1' : '0',
+                        custom_cursor_enabled: checkbox.is(':checked') ? '1' : '0',
                         _wpnonce: '<?php echo wp_create_nonce('custom_cursor_settings'); ?>'
                     },
                     success: function() {
-                        location.reload();
+                        // Show success message
+                        statusDiv.find('.spinner').hide();
+                        statusDiv.find('.status-text').html('<span style="color: #46b450;">✓ Saved!</span>');
+                        statusDiv.addClass('saved');
+                        
+                        // Reload after brief delay
+                        setTimeout(function() {
+                            location.reload();
+                        }, 800);
+                    },
+                    error: function() {
+                        // Show error and re-enable
+                        statusDiv.find('.spinner').hide();
+                        statusDiv.find('.status-text').html('<span style="color: #dc3232;">✗ Error saving</span>');
+                        checkbox.prop('disabled', false);
+                        
+                        // Hide error after 3 seconds
+                        setTimeout(function() {
+                            statusDiv.fadeOut();
+                        }, 3000);
                     }
                 });
+            });
+            
+            // Show upload feedback when form is submitted
+            $('form[action*="admin-post.php"]').on('submit', function() {
+                var fileInput = $('#cursor_image');
+                
+                // Only show uploading if a file was selected
+                if (fileInput.val()) {
+                    $('#submit').prop('disabled', true);
+                    $('#upload-status').show();
+                }
             });
         });
         </script>
