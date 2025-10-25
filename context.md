@@ -5,7 +5,7 @@
 ## Project Overview
 
 **What it does:**  
-A WordPress plugin that enables site administrators to upload custom cursor images with animations and visual effects through a beautiful modern admin interface. The plugin features a card-based UI with progressive disclosure, automatically optimizes uploaded images to a user-selected size (16px to 64px), supports six animation types (pulse, spin, bounce, shake, glow, click), visual effects (blend modes, drop shadows), and provides an intuitive workflow with organized settings sections and a unified save button.
+A WordPress plugin that enables site administrators to manage multiple custom cursor images through a carousel-based gallery interface. Create unlimited cursors, each with its own name, image, animations, and visual effects. Navigate between cursors using left/right arrow buttons, create new cursors with one click, and use unique ID-based shortcodes to display specific cursors on different pages. Features a beautiful modern admin interface with card-based UI, progressive disclosure, automatic image optimization (16px to 64px), six animation types, visual effects (blend modes, drop shadows), and an intuitive carousel workflow.
 
 **Tech Stack:**
 - **Backend:** PHP 7.0+ (WordPress plugin architecture)
@@ -23,22 +23,62 @@ A WordPress plugin that enables site administrators to upload custom cursor imag
 
 ```
 /wp-icon-plugin/
-├── custom-cursor-plugin.php  (769 lines) - Main plugin file with full feature set
-├── admin.js                   (10 lines)  - Admin scripts placeholder
-├── README.md                  (166 lines) - User documentation
-├── INSTALLATION.txt           (31 lines)  - Quick setup guide
-├── context.md                 (358 lines) - AI/developer technical docs
+├── custom-cursor-plugin.php  (1095 lines) - Main plugin file with gallery system
+├── admin.js                   (10 lines)   - Admin scripts placeholder
+├── README.md                  (185 lines)  - User documentation
+├── INSTALLATION.txt           (31 lines)   - Quick setup guide
+├── context.md                 (450+ lines) - AI/developer technical docs
 └── docs/
-    └── settings-page.png                  - Screenshot of admin interface (outdated)
+    └── settings-page.png                   - Screenshot of admin interface (outdated)
 ```
+
+## Gallery System Architecture
+
+### Data Structure
+The plugin uses a gallery-based system to store multiple cursors:
+
+**WordPress Options:**
+- `custom_cursor_gallery` - JSON array containing all cursor objects
+- `custom_cursor_current_id` - Integer tracking which cursor is currently being edited
+
+**Cursor Object Structure:**
+Each cursor in the gallery is an associative array with:
+```php
+array(
+    'id' => 1,  // Unique auto-incremented ID
+    'name' => 'Cursor 1',  // User-friendly name
+    'enabled' => '1',  // Enable/disable toggle
+    'image_id' => 123,  // WordPress attachment ID
+    'image_url' => 'https://...',  // Full image URL
+    'size' => '32',  // Cursor size in pixels
+    'animation_type' => 'pulse',  // Animation type
+    'animation_loop' => '1',  // Loop on/off
+    'animation_speed' => '1',  // Speed in seconds
+    'click_animation' => '0',  // Click animation on/off
+    'blend_mode' => 'normal',  // CSS blend mode
+    'shadow_enabled' => '0',  // Shadow on/off
+    'shadow_color' => '#000000'  // Hex color
+)
+```
+
+### Migration System
+On first load, the plugin automatically migrates from the old single-cursor system (if it exists) to the new gallery structure, preserving all existing settings as "Cursor 1".
 
 ## Core Components
 
 ### 1. Main Plugin Class (`custom-cursor-plugin.php`)
 
-**File:** `custom-cursor-plugin.php` (318 lines total)
+**File:** `custom-cursor-plugin.php` (1095 lines total)
 
-The plugin is implemented as a single PHP class with the following key components:
+The plugin is implemented as a single PHP class with gallery management methods and the following key components:
+
+#### Gallery Helper Methods (top of class)
+- `maybe_initialize_gallery()` - Creates gallery structure on first load, migrates old data
+- `get_default_cursor($id)` - Returns default cursor object structure  
+- `get_cursors()` - Retrieves all cursors from gallery
+- `get_current_cursor_id()` - Gets ID of cursor currently being edited
+- `get_cursor_by_id($id)` - Fetches specific cursor by ID
+- `save_cursor($cursor_data)` - Updates or creates cursor in gallery
 
 #### Class Properties (near top of class)
 ```php
@@ -129,11 +169,18 @@ public function settings_page() {
 ```
 Generates a beautiful modern admin interface with card-based layout, gradient headers, progressive disclosure (collapsible sections), real-time color picker, and organized workflow with single save button.
 
-#### Shortcode Handler (near end of class, ~613-764)
+#### Navigation Handlers (middle of class)
+- `handle_navigate()` - Processes left/right arrow navigation between cursors
+- `handle_new_cursor()` - Creates new cursor with auto-incremented ID
+- `handle_delete_cursor()` - Removes current cursor (prevents deleting last one)
+
+#### Shortcode Handler (~932-1080)
 ```php
 public function custom_cursor_shortcode($atts) {
-    // Check if enabled and image exists
-    // Get all settings (animation, visual effects)
+    // Parse 'id' attribute from shortcode
+    // Get cursor by ID from gallery
+    // Check if cursor enabled and has image
+    // Extract all cursor settings
     // Generate CSS keyframes for animation type
     // Generate click animation keyframes if enabled
     // Output CSS for cursor with:
@@ -145,10 +192,10 @@ public function custom_cursor_shortcode($atts) {
     //   - Create animated cursor element (if animation enabled)
     //   - Track mouse movement
     //   - Handle click animation (mousedown/mouseup)
-    // Returns empty string if disabled
+    // Returns empty string if cursor not found/disabled
 }
 ```
-Generates inline CSS (including animation keyframes, blend modes, shadows) and JavaScript to apply custom animated cursor with full visual effects. Supports six animation types, click interaction, blend modes, and custom drop shadows.
+Accepts `id` parameter (`[custom_cursor id="1"]`), loads specific cursor from gallery by ID, and generates inline CSS and JavaScript to apply that cursor with all its settings. Returns empty if cursor doesn't exist or is disabled.
 
 **Note:** The AJAX settings handler has been removed. All settings now save together via the unified "Save All Settings" button using standard form submission.
 

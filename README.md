@@ -2,7 +2,7 @@
 
 ## Summary
 
-**A WordPress plugin for custom animated cursor images with a beautiful modern interface.** Upload any image through an intuitive card-based admin UI with automatic optimization to your chosen size (16-64px). Apply custom cursors with animations (pulse, spin, bounce, shake, glow), visual effects (blend modes, shadows), and click interactions to any page using the `[custom_cursor]` shortcode. Features progressive disclosure for advanced options, real-time color picker, one-click shortcode copying with visual confirmation, and a streamlined single Save Settings button for an intuitive workflow.
+**A WordPress plugin for managing multiple custom animated cursors with a beautiful gallery interface.** Create and manage unlimited cursors through an intuitive carousel-based admin UI with left/right navigation arrows. Each cursor can have its own image (16-64px), animations (pulse, spin, bounce, shake, glow), visual effects (blend modes, shadows), and click interactions. Navigate between cursors with arrow keys, create new cursors with one click, and use unique ID-based shortcodes (`[custom_cursor id="1"]`) to display specific cursors on any page. Features progressive disclosure, real-time color picker, and an organized gallery workflow.
 
 **For Developers:** See [`context.md`](context.md) for technical architecture, code flow, and extension guides.
 
@@ -19,7 +19,10 @@ By Weng Fei Fung (Weng). A WordPress plugin that allows you to upload a custom c
 
 ## Features
 
+- **🎨 Cursor Gallery System** - Create and manage unlimited custom cursors
+- **⬅️➡️ Carousel Navigation** - Browse cursors with left/right arrow buttons
 - **Beautiful modern admin interface** with card-based layout and gradient styling
+- **Named Cursors** - Give each cursor a memorable name for easy identification
 - Upload custom cursor images through WordPress admin
 - **Multiple cursor sizes:** Choose from 16x16, 24x24, 32x32, 48x48, or 64x64 pixels
 - **Six animation types:** Pulse, Spin, Bounce, Shake, Glow, or None (static)
@@ -48,15 +51,23 @@ By Weng Fei Fung (Weng). A WordPress plugin that allows you to upload a custom c
 
 ## Usage
 
-### Step 1: Basic Setup
+### Step 1: Navigate the Cursor Gallery
 
-1. Go to **Custom Cursor** in the WordPress admin menu
-2. Check "Enable custom cursor functionality" to activate the plugin
+1. Go to **Custom Cursor Gallery** in the WordPress admin menu
+2. You'll see a carousel navigation bar at the top showing your current cursor
+3. Use **◀ and ▶ arrows** to browse between cursors
+4. Click **➕ New Cursor** to create additional cursors
+5. Click **🗑️ Delete Cursor** to remove the current cursor (requires at least 2 cursors)
+
+### Step 2: Configure Current Cursor
+
+1. Give your cursor a **memorable name** (displayed in the carousel)
+2. Check "Enable custom cursor functionality" to activate this cursor
 3. Upload an image file (any size - it will be automatically optimized)
    - Click "📤 Upload Image" right next to the file selector
 4. Select your preferred **cursor size** (16px to 64px, default is 32px ⭐)
 
-### Step 2: Configure Animations (Optional)
+### Step 3: Configure Animations (Optional)
 
 1. Choose an **animation type** from the dropdown (Pulse, Spin, Bounce, Shake, Glow, or None)
 2. Click "Advanced Animation Options" to expand additional settings:
@@ -64,32 +75,42 @@ By Weng Fei Fung (Weng). A WordPress plugin that allows you to upload a custom c
    - Toggle "Loop animation continuously" for infinite animation
    - Enable "Pulse on click" for click interaction feedback
 
-### Step 3: Add Visual Effects (Optional)
+### Step 4: Add Visual Effects (Optional)
 
 1. Click "Advanced Visual Effects" to expand styling options:
    - Choose a **blend mode** for creative color mixing effects
    - Enable **drop shadow** and pick a custom color for depth
 
-### Step 4: Save and Get Shortcode
+### Step 5: Save and Get Shortcode
 
 1. Click the large "💾 Save All Settings" button at the bottom of the page
 2. You'll see a success message confirming all settings were saved
-3. The shortcode will appear in a dedicated card:
+3. The shortcode will appear in a dedicated card with the cursor's unique ID:
    ```
-   [custom_cursor]
+   [custom_cursor id="1"]
    ```
 4. Click "📋 Copy Shortcode" for one-click copying
-5. Paste the shortcode into any WordPress page or post where you want the custom cursor
+5. Paste the shortcode into any WordPress page or post
+6. **Use different cursor IDs** on different pages to show different cursors!
 
 ## How It Works
 
+### Gallery System
+- All cursors are stored in a JSON array in WordPress options
+- Each cursor has a unique auto-incremented ID
+- Navigate between cursors using left/right arrow buttons
+- Current cursor position tracked separately for seamless editing
+- Automatic migration from single-cursor to gallery on first load
+
+### Frontend Display
+- Shortcode `[custom_cursor id="X"]` loads specific cursor by ID
 - The shortcode applies the custom cursor to the entire page when activated
 - **For static cursors:** Uses CSS `cursor` property with your image URL
 - **For animated cursors:** Creates a floating div element that tracks mouse movement
 - All animations use CSS3 keyframes for smooth performance
 - Visual effects (blend modes, shadows) are applied via CSS filters
 - Click animations respond to mousedown/mouseup events
-- Falls back to default cursor if the custom image fails to load
+- Falls back to default cursor if the custom image fails to load or cursor ID doesn't exist
 
 ## Requirements
 

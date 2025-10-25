@@ -18,22 +18,139 @@ if (!defined('ABSPATH')) {
 class Custom_Cursor_Plugin {
     
     private $option_name = 'custom_cursor_settings';
+    private $gallery_option = 'custom_cursor_gallery';
+    private $current_id_option = 'custom_cursor_current_id';
     
     public function __construct() {
+        // Initialize gallery if needed
+        $this->maybe_initialize_gallery();
+        
         // Add admin menu
         add_action('admin_menu', array($this, 'add_admin_menu'));
         
         // Register settings
         add_action('admin_init', array($this, 'register_settings'));
         
-        // Handle image upload
+        // Handle image upload and cursor management
         add_action('admin_post_custom_cursor_upload', array($this, 'handle_image_upload'));
+        add_action('admin_post_custom_cursor_navigate', array($this, 'handle_navigate'));
+        add_action('admin_post_custom_cursor_new', array($this, 'handle_new_cursor'));
+        add_action('admin_post_custom_cursor_delete', array($this, 'handle_delete_cursor'));
         
         // Register shortcode
         add_shortcode('custom_cursor', array($this, 'custom_cursor_shortcode'));
         
         // Enqueue admin scripts
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+    }
+    
+    /**
+     * Initialize gallery structure if it doesn't exist
+     */
+    private function maybe_initialize_gallery() {
+        $gallery = get_option($this->gallery_option);
+        
+        if ($gallery === false) {
+            // Migrate from old single-cursor system or create first cursor
+            $cursors = array();
+            
+            // Check if old settings exist
+            $old_enabled = get_option('custom_cursor_enabled');
+            if ($old_enabled !== false) {
+                // Migrate existing cursor
+                $cursors[] = array(
+                    'id' => 1,
+                    'name' => 'Cursor 1',
+                    'enabled' => get_option('custom_cursor_enabled', '0'),
+                    'image_id' => get_option('custom_cursor_image_id', ''),
+                    'image_url' => get_option('custom_cursor_image_url', ''),
+                    'size' => get_option('custom_cursor_size', '32'),
+                    'animation_type' => get_option('custom_cursor_animation_type', 'none'),
+                    'animation_loop' => get_option('custom_cursor_animation_loop', '1'),
+                    'animation_speed' => get_option('custom_cursor_animation_speed', '1'),
+                    'click_animation' => get_option('custom_cursor_click_animation', '0'),
+                    'blend_mode' => get_option('custom_cursor_blend_mode', 'normal'),
+                    'shadow_enabled' => get_option('custom_cursor_shadow_enabled', '0'),
+                    'shadow_color' => get_option('custom_cursor_shadow_color', '#000000')
+                );
+            } else {
+                // Create first empty cursor
+                $cursors[] = $this->get_default_cursor(1);
+            }
+            
+            update_option($this->gallery_option, $cursors);
+            update_option($this->current_id_option, 1);
+        }
+    }
+    
+    /**
+     * Get default cursor structure
+     */
+    private function get_default_cursor($id) {
+        return array(
+            'id' => $id,
+            'name' => 'Cursor ' . $id,
+            'enabled' => '0',
+            'image_id' => '',
+            'image_url' => '',
+            'size' => '32',
+            'animation_type' => 'none',
+            'animation_loop' => '1',
+            'animation_speed' => '1',
+            'click_animation' => '0',
+            'blend_mode' => 'normal',
+            'shadow_enabled' => '0',
+            'shadow_color' => '#000000'
+        );
+    }
+    
+    /**
+     * Get all cursors from gallery
+     */
+    private function get_cursors() {
+        return get_option($this->gallery_option, array());
+    }
+    
+    /**
+     * Get current cursor ID
+     */
+    private function get_current_cursor_id() {
+        return get_option($this->current_id_option, 1);
+    }
+    
+    /**
+     * Get cursor by ID
+     */
+    private function get_cursor_by_id($id) {
+        $cursors = $this->get_cursors();
+        foreach ($cursors as $cursor) {
+            if ($cursor['id'] == $id) {
+                return $cursor;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Save cursor data
+     */
+    private function save_cursor($cursor_data) {
+        $cursors = $this->get_cursors();
+        $found = false;
+        
+        foreach ($cursors as $index => $cursor) {
+            if ($cursor['id'] == $cursor_data['id']) {
+                $cursors[$index] = $cursor_data;
+                $found = true;
+                break;
+            }
+        }
+        
+        if (!$found) {
+            $cursors[] = $cursor_data;
+        }
+        
+        update_option($this->gallery_option, $cursors);
     }
     
     /**
@@ -87,7 +204,122 @@ class Custom_Cursor_Plugin {
     }
     
     /**
-     * Handle image upload and resize
+     * Handle navigation between cursors
+     */
+    public function handle_navigate() {
+        if (!isset($_POST['custom_cursor_nonce']) || 
+            !wp_verify_nonce($_POST['custom_cursor_nonce'], 'custom_cursor_navigate')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized access');
+        }
+        
+        $direction = isset($_POST['direction']) ? $_POST['direction'] : 'next';
+        $cursors = $this->get_cursors();
+        $current_id = $this->get_current_cursor_id();
+        
+        // Find current index
+        $current_index = 0;
+        foreach ($cursors as $index => $cursor) {
+            if ($cursor['id'] == $current_id) {
+                $current_index = $index;
+                break;
+            }
+        }
+        
+        // Navigate
+        if ($direction === 'prev') {
+            $new_index = $current_index > 0 ? $current_index - 1 : count($cursors) - 1;
+        } else {
+            $new_index = $current_index < count($cursors) - 1 ? $current_index + 1 : 0;
+        }
+        
+        update_option($this->current_id_option, $cursors[$new_index]['id']);
+        
+        wp_redirect(admin_url('admin.php?page=custom-cursor'));
+        exit;
+    }
+    
+    /**
+     * Handle creating new cursor
+     */
+    public function handle_new_cursor() {
+        if (!isset($_POST['custom_cursor_nonce']) || 
+            !wp_verify_nonce($_POST['custom_cursor_nonce'], 'custom_cursor_new')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized access');
+        }
+        
+        $cursors = $this->get_cursors();
+        
+        // Find max ID
+        $max_id = 0;
+        foreach ($cursors as $cursor) {
+            if ($cursor['id'] > $max_id) {
+                $max_id = $cursor['id'];
+            }
+        }
+        
+        $new_id = $max_id + 1;
+        $new_cursor = $this->get_default_cursor($new_id);
+        $cursors[] = $new_cursor;
+        
+        update_option($this->gallery_option, $cursors);
+        update_option($this->current_id_option, $new_id);
+        
+        wp_redirect(admin_url('admin.php?page=custom-cursor'));
+        exit;
+    }
+    
+    /**
+     * Handle deleting cursor
+     */
+    public function handle_delete_cursor() {
+        if (!isset($_POST['custom_cursor_nonce']) || 
+            !wp_verify_nonce($_POST['custom_cursor_nonce'], 'custom_cursor_delete')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized access');
+        }
+        
+        $cursors = $this->get_cursors();
+        
+        // Don't allow deleting if only one cursor
+        if (count($cursors) <= 1) {
+            wp_redirect(add_query_arg('error', 'cannot_delete_last', admin_url('admin.php?page=custom-cursor')));
+            exit;
+        }
+        
+        $current_id = $this->get_current_cursor_id();
+        
+        // Remove current cursor
+        $new_cursors = array();
+        foreach ($cursors as $cursor) {
+            if ($cursor['id'] != $current_id) {
+                $new_cursors[] = $cursor;
+            }
+        }
+        
+        update_option($this->gallery_option, $new_cursors);
+        
+        // Set current to first cursor
+        if (!empty($new_cursors)) {
+            update_option($this->current_id_option, $new_cursors[0]['id']);
+        }
+        
+        wp_redirect(admin_url('admin.php?page=custom-cursor'));
+        exit;
+    }
+    
+    /**
+     * Handle image upload and save settings
      */
     public function handle_image_upload() {
         // Check nonce
@@ -99,6 +331,13 @@ class Custom_Cursor_Plugin {
         // Check permissions
         if (!current_user_can('manage_options')) {
             wp_die('Unauthorized access');
+        }
+        
+        $current_id = $this->get_current_cursor_id();
+        $cursor = $this->get_cursor_by_id($current_id);
+        
+        if (!$cursor) {
+            wp_die('Cursor not found');
         }
         
         // Handle file upload
@@ -115,41 +354,28 @@ class Custom_Cursor_Plugin {
             }
             
             // Resize image based on selected size
-            $cursor_size = get_option('custom_cursor_size', '32');
-            $this->resize_cursor_image($attachment_id, intval($cursor_size));
+            $cursor_size = isset($_POST['custom_cursor_size']) ? intval($_POST['custom_cursor_size']) : 32;
+            $this->resize_cursor_image($attachment_id, $cursor_size);
             
-            // Save attachment ID
-            update_option('custom_cursor_image_id', $attachment_id);
-            update_option('custom_cursor_image_url', wp_get_attachment_url($attachment_id));
+            // Update cursor with new image
+            $cursor['image_id'] = $attachment_id;
+            $cursor['image_url'] = wp_get_attachment_url($attachment_id);
         }
         
-        // Save all settings
-        update_option('custom_cursor_enabled', isset($_POST['custom_cursor_enabled']) ? '1' : '0');
+        // Update all cursor settings from form
+        $cursor['name'] = isset($_POST['cursor_name']) ? sanitize_text_field($_POST['cursor_name']) : $cursor['name'];
+        $cursor['enabled'] = isset($_POST['custom_cursor_enabled']) ? '1' : '0';
+        $cursor['size'] = isset($_POST['custom_cursor_size']) ? sanitize_text_field($_POST['custom_cursor_size']) : '32';
+        $cursor['animation_type'] = isset($_POST['custom_cursor_animation_type']) ? sanitize_text_field($_POST['custom_cursor_animation_type']) : 'none';
+        $cursor['animation_loop'] = isset($_POST['custom_cursor_animation_loop']) ? '1' : '0';
+        $cursor['animation_speed'] = isset($_POST['custom_cursor_animation_speed']) ? sanitize_text_field($_POST['custom_cursor_animation_speed']) : '1';
+        $cursor['click_animation'] = isset($_POST['custom_cursor_click_animation']) ? '1' : '0';
+        $cursor['blend_mode'] = isset($_POST['custom_cursor_blend_mode']) ? sanitize_text_field($_POST['custom_cursor_blend_mode']) : 'normal';
+        $cursor['shadow_enabled'] = isset($_POST['custom_cursor_shadow_enabled']) ? '1' : '0';
+        $cursor['shadow_color'] = isset($_POST['custom_cursor_shadow_color']) ? sanitize_text_field($_POST['custom_cursor_shadow_color']) : '#000000';
         
-        if (isset($_POST['custom_cursor_size'])) {
-            update_option('custom_cursor_size', sanitize_text_field($_POST['custom_cursor_size']));
-        }
-        if (isset($_POST['custom_cursor_animation_type'])) {
-            update_option('custom_cursor_animation_type', sanitize_text_field($_POST['custom_cursor_animation_type']));
-        }
-        
-        update_option('custom_cursor_animation_loop', isset($_POST['custom_cursor_animation_loop']) ? '1' : '0');
-        
-        if (isset($_POST['custom_cursor_animation_speed'])) {
-            update_option('custom_cursor_animation_speed', sanitize_text_field($_POST['custom_cursor_animation_speed']));
-        }
-        
-        update_option('custom_cursor_click_animation', isset($_POST['custom_cursor_click_animation']) ? '1' : '0');
-        
-        if (isset($_POST['custom_cursor_blend_mode'])) {
-            update_option('custom_cursor_blend_mode', sanitize_text_field($_POST['custom_cursor_blend_mode']));
-        }
-        
-        update_option('custom_cursor_shadow_enabled', isset($_POST['custom_cursor_shadow_enabled']) ? '1' : '0');
-        
-        if (isset($_POST['custom_cursor_shadow_color'])) {
-            update_option('custom_cursor_shadow_color', sanitize_text_field($_POST['custom_cursor_shadow_color']));
-        }
+        // Save cursor
+        $this->save_cursor($cursor);
         
         wp_redirect(add_query_arg('upload', 'success', admin_url('admin.php?page=custom-cursor')));
         exit;
@@ -193,25 +419,47 @@ class Custom_Cursor_Plugin {
      * Render settings page
      */
     public function settings_page() {
-        $enabled = get_option('custom_cursor_enabled', false);
-        $image_url = get_option('custom_cursor_image_url', '');
-        $image_id = get_option('custom_cursor_image_id', '');
-        $cursor_size = get_option('custom_cursor_size', '32');
-        $animation_type = get_option('custom_cursor_animation_type', 'none');
-        $animation_loop = get_option('custom_cursor_animation_loop', '1');
-        $animation_speed = get_option('custom_cursor_animation_speed', '1');
-        $click_animation = get_option('custom_cursor_click_animation', '0');
-        $blend_mode = get_option('custom_cursor_blend_mode', 'normal');
-        $shadow_enabled = get_option('custom_cursor_shadow_enabled', '0');
-        $shadow_color = get_option('custom_cursor_shadow_color', '#000000');
+        // Get cursor gallery data
+        $cursors = $this->get_cursors();
+        $current_id = $this->get_current_cursor_id();
+        $cursor = $this->get_cursor_by_id($current_id);
+        
+        if (!$cursor) {
+            // Fallback if cursor not found
+            $cursor = $this->get_default_cursor(1);
+        }
+        
+        // Extract cursor data
+        $cursor_name = $cursor['name'];
+        $enabled = $cursor['enabled'];
+        $image_url = $cursor['image_url'];
+        $image_id = $cursor['image_id'];
+        $cursor_size = $cursor['size'];
+        $animation_type = $cursor['animation_type'];
+        $animation_loop = $cursor['animation_loop'];
+        $animation_speed = $cursor['animation_speed'];
+        $click_animation = $cursor['click_animation'];
+        $blend_mode = $cursor['blend_mode'];
+        $shadow_enabled = $cursor['shadow_enabled'];
+        $shadow_color = $cursor['shadow_color'];
+        
+        // Calculate cursor position
+        $current_index = 0;
+        foreach ($cursors as $index => $c) {
+            if ($c['id'] == $current_id) {
+                $current_index = $index + 1; // 1-based for display
+                break;
+            }
+        }
+        $total_cursors = count($cursors);
         
         ?>
         <div class="wrap">
-            <h1>✨ Custom Cursor Settings</h1>
+            <h1>✨ Custom Cursor Gallery</h1>
             
             <?php if (isset($_GET['upload']) && $_GET['upload'] === 'success'): ?>
                 <div class="notice notice-success is-dismissible">
-                    <p><strong>Success!</strong> Settings saved successfully!</p>
+                    <p><strong>Success!</strong> Cursor saved successfully!</p>
                 </div>
             <?php endif; ?>
             
@@ -220,6 +468,161 @@ class Custom_Cursor_Plugin {
                     <p><strong>Error!</strong> There was a problem saving. Please try again.</p>
                 </div>
             <?php endif; ?>
+            
+            <?php if (isset($_GET['error']) && $_GET['error'] === 'cannot_delete_last'): ?>
+                <div class="notice notice-error is-dismissible">
+                    <p><strong>Error!</strong> Cannot delete the last cursor. You must have at least one cursor.</p>
+                </div>
+            <?php endif; ?>
+            
+            <!-- Refined Carousel Navigation -->
+            <style>
+                .cursor-carousel-container {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 35px 30px 25px;
+                    border-radius: 12px;
+                    margin: 20px 0;
+                    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3);
+                    position: relative;
+                    overflow: hidden;
+                }
+                .cursor-carousel-container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 1px;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+                }
+                .cursor-nav-wrapper {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    gap: 20px;
+                }
+                .cursor-nav-btn {
+                    font-size: 18px !important;
+                    padding: 10px 20px !important;
+                    background: rgba(255, 255, 255, 0.25) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+                    cursor: pointer !important;
+                    border-radius: 8px !important;
+                    transition: all 0.2s ease !important;
+                    font-weight: 500 !important;
+                    color: white !important;
+                    min-width: 50px;
+                    backdrop-filter: blur(10px);
+                }
+                .cursor-nav-btn:hover {
+                    background: rgba(255, 255, 255, 0.35) !important;
+                    border-color: rgba(255, 255, 255, 0.5) !important;
+                    transform: translateY(-1px);
+                }
+                .cursor-nav-btn:active {
+                    transform: translateY(0);
+                }
+                .cursor-info {
+                    color: white;
+                    text-align: center;
+                    flex-grow: 1;
+                    padding: 0 30px;
+                }
+                .cursor-name {
+                    font-size: 28px;
+                    font-weight: 600;
+                    margin-bottom: 6px;
+                    text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                    letter-spacing: -0.3px;
+                }
+                .cursor-counter {
+                    font-size: 13px;
+                    opacity: 0.85;
+                    font-weight: 400;
+                    letter-spacing: 0.3px;
+                }
+                .cursor-actions {
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                    margin-top: 20px;
+                    padding-top: 20px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.15);
+                }
+                .cursor-action-btn {
+                    padding: 8px 18px !important;
+                    font-size: 12px !important;
+                    font-weight: 500 !important;
+                    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+                    border-radius: 6px !important;
+                    cursor: pointer !important;
+                    transition: all 0.2s ease !important;
+                    background: rgba(255, 255, 255, 0.1) !important;
+                    color: white !important;
+                    letter-spacing: 0.3px;
+                }
+                .cursor-action-btn:hover {
+                    background: rgba(255, 255, 255, 0.2) !important;
+                    border-color: rgba(255, 255, 255, 0.4) !important;
+                    transform: translateY(-1px);
+                }
+                .cursor-action-btn:active {
+                    transform: translateY(0);
+                }
+            </style>
+            
+            <div class="cursor-carousel-container">
+                <div class="cursor-nav-wrapper">
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin: 0;">
+                        <input type="hidden" name="action" value="custom_cursor_navigate">
+                        <input type="hidden" name="direction" value="prev">
+                        <?php wp_nonce_field('custom_cursor_navigate', 'custom_cursor_nonce'); ?>
+                        <button type="submit" class="cursor-nav-btn" title="Previous Cursor">
+                            ◀
+                        </button>
+                    </form>
+                    
+                    <div class="cursor-info">
+                        <div class="cursor-name">
+                            <?php echo esc_html($cursor_name); ?>
+                        </div>
+                        <div class="cursor-counter">
+                            Cursor <?php echo $current_index; ?> of <?php echo $total_cursors; ?>
+                        </div>
+                    </div>
+                    
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin: 0;">
+                        <input type="hidden" name="action" value="custom_cursor_navigate">
+                        <input type="hidden" name="direction" value="next">
+                        <?php wp_nonce_field('custom_cursor_navigate', 'custom_cursor_nonce'); ?>
+                        <button type="submit" class="cursor-nav-btn" title="Next Cursor">
+                            ▶
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="cursor-actions">
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin: 0;">
+                        <input type="hidden" name="action" value="custom_cursor_new">
+                        <?php wp_nonce_field('custom_cursor_new', 'custom_cursor_nonce'); ?>
+                        <button type="submit" class="cursor-action-btn" title="Create a new cursor">
+                            + New Cursor
+                        </button>
+                    </form>
+                    
+                    <?php if ($total_cursors > 1): ?>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin: 0;" onsubmit="return confirm('Are you sure you want to delete &quot;<?php echo esc_js($cursor_name); ?>&quot;?\n\nThis action cannot be undone.');">
+                        <input type="hidden" name="action" value="custom_cursor_delete">
+                        <?php wp_nonce_field('custom_cursor_delete', 'custom_cursor_nonce'); ?>
+                        <button type="submit" class="cursor-action-btn" title="Delete this cursor">
+                            Delete
+                        </button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
             
             <style>
                 .custom-cursor-card {
@@ -321,6 +724,16 @@ class Custom_Cursor_Plugin {
                     </div>
                     <div class="custom-cursor-card-body">
                         <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="cursor_name">Cursor Name</label>
+                                </th>
+                                <td>
+                                    <input type="text" name="cursor_name" id="cursor_name" value="<?php echo esc_attr($cursor_name); ?>" class="regular-text" placeholder="My Custom Cursor">
+                                    <p class="description">Give this cursor a memorable name (shown in carousel navigation).</p>
+                                </td>
+                            </tr>
+                            
                             <tr>
                                 <th scope="row">
                                     <label>Enable Custom Cursor</label>
@@ -520,13 +933,16 @@ class Custom_Cursor_Plugin {
                         📋 Shortcode
                     </div>
                     <div class="custom-cursor-card-body">
-                        <p style="margin-top: 0;">Copy and paste this shortcode into any page or post to enable the custom cursor:</p>
+                        <p style="margin-top: 0;">Copy and paste this shortcode into any page or post to enable this custom cursor:</p>
                         <div style="background: #f6f7f7; padding: 15px; border-radius: 4px; border: 1px solid #c3c4c7; margin: 15px 0;">
-                            <code style="display: block; background: white; padding: 12px; font-size: 16px; border: 2px dashed #667eea; border-radius: 4px; font-family: monospace;">[custom_cursor]</code>
+                            <code style="display: block; background: white; padding: 12px; font-size: 16px; border: 2px dashed #667eea; border-radius: 4px; font-family: monospace;">[custom_cursor id="<?php echo $current_id; ?>"]</code>
                         </div>
-                        <button type="button" class="button button-secondary" onclick="navigator.clipboard.writeText('[custom_cursor]'); this.innerHTML = '✓ Copied!'; setTimeout(() => this.innerHTML = '📋 Copy Shortcode', 2000);">
+                        <button type="button" class="button button-secondary" onclick="navigator.clipboard.writeText('[custom_cursor id=&quot;<?php echo $current_id; ?>&quot;]'); this.innerHTML = '✓ Copied!'; setTimeout(() => this.innerHTML = '📋 Copy Shortcode', 2000);">
                             📋 Copy Shortcode
                         </button>
+                        <p class="description" style="margin-top: 10px;">
+                            💡 <strong>Tip:</strong> Each cursor has a unique ID. This shortcode will always display "<?php echo esc_html($cursor_name); ?>".
+                        </p>
                     </div>
                 </div>
             <?php elseif ($enabled && !$image_url): ?>
@@ -611,22 +1027,29 @@ class Custom_Cursor_Plugin {
      * Shortcode handler
      */
     public function custom_cursor_shortcode($atts) {
-        $enabled = get_option('custom_cursor_enabled', false);
-        $image_url = get_option('custom_cursor_image_url', '');
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'id' => '1', // Default to first cursor
+        ), $atts);
         
-        if (!$enabled || !$image_url) {
+        $cursor_id = intval($atts['id']);
+        $cursor = $this->get_cursor_by_id($cursor_id);
+        
+        // If cursor not found or not enabled, return empty
+        if (!$cursor || $cursor['enabled'] !== '1' || empty($cursor['image_url'])) {
             return '';
         }
         
-        // Get all settings
-        $animation_type = get_option('custom_cursor_animation_type', 'none');
-        $animation_loop = get_option('custom_cursor_animation_loop', '1');
-        $animation_speed = get_option('custom_cursor_animation_speed', '1');
-        $cursor_size = get_option('custom_cursor_size', '32');
-        $click_animation = get_option('custom_cursor_click_animation', '0');
-        $blend_mode = get_option('custom_cursor_blend_mode', 'normal');
-        $shadow_enabled = get_option('custom_cursor_shadow_enabled', '0');
-        $shadow_color = get_option('custom_cursor_shadow_color', '#000000');
+        // Extract cursor settings
+        $image_url = $cursor['image_url'];
+        $animation_type = $cursor['animation_type'];
+        $animation_loop = $cursor['animation_loop'];
+        $animation_speed = $cursor['animation_speed'];
+        $cursor_size = $cursor['size'];
+        $click_animation = $cursor['click_animation'];
+        $blend_mode = $cursor['blend_mode'];
+        $shadow_enabled = $cursor['shadow_enabled'];
+        $shadow_color = $cursor['shadow_color'];
         
         // Start output
         $output = '<style>';
