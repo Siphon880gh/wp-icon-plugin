@@ -15,7 +15,7 @@
 
 By Weng Fei Fung (Weng). A WordPress plugin that allows you to upload a custom cursor image and display it on any page using a shortcode.
 
-![Settings Screenshot](docs/settings-page.png)
+![Settings Screenshot](docs/settings-page-v2.png)
 
 ## Features
 
